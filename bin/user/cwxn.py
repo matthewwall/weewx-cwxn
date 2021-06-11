@@ -190,7 +190,7 @@ class CumulusWXNow(StdService):
         fields.append("P%03d" % int(data['dayRain'] * 100))
         if data['outHumidity'] < 0 or 100 <= data['outHumidity']:
             data['outHumidity'] = 0
-        fields.append("h%03d" % int(data['outHumidity']))
+        fields.append("h%02d" % int(data['outHumidity']))
         fields.append("b%05d" % int(data['barometer'] * 10))
         with open(self.filename, 'w') as f:
             f.write(time.strftime("%b %d %Y %H:%M\n",
