@@ -156,7 +156,7 @@ class CumulusWXNow(StdService):
         if 'windDir' in packet and packet['windDir'] is not None:
             data['windDir'] = ("%03d" % int(packet['windDir']))
         else:
-            data['windDir] = "   "
+            data['windDir'] = "   "
 
         # Wind speed calculations
         if 'windSpeed' in packet and packet['windSpeed'] is not None:
@@ -178,7 +178,7 @@ class CumulusWXNow(StdService):
 
         # Humidity calculations
         if 'outHumidity' in packet and packet['outHumidity'] is not None:
-            data['outHumidity'] = ("h%03d" % int(packet['outHumidity']))
+            data['outHumidity'] = ("h%02d" % int(packet['outHumidity']))
         else:
             data['outHumidity'] = "h   "
 
