@@ -17,9 +17,6 @@ weewx configuration file:
         process_services = ..., user.cwxn.CumulusWXNow
 """
 
-# FIXME: when value is None, we insert a 0.  but is there something in the
-#        aprs spec that is more appropriate?
-
 import time
 
 import weewx
@@ -41,9 +38,6 @@ try:
     def loginf(msg):
         log.info(msg)
 
-    def logerr(msg):
-        log.error(msg)
-
     def log_traceback_error(prefix=''):
         log_traceback(log.error, prefix=prefix)
 
@@ -55,14 +49,8 @@ except ImportError:
     def logmsg(level, msg):
         syslog.syslog(level, 'cwxn: %s' % msg)
 
-    def logdbg(msg):
-        logmsg(syslog.LOG_DEBUG, msg)
-
     def loginf(msg):
         logmsg(syslog.LOG_INFO, msg)
-
-    def logerr(msg):
-        logmsg(syslog.LOG_ERR, msg)
 
     def log_traceback_error(prefix=''):
         log_traceback(prefix=prefix, loglevel=syslog.LOG_ERR)
@@ -79,12 +67,6 @@ def convert(v, metric, group, from_unit_system, to_units):
     vt = (v, ut[0], group)
     v = weewx.units.convert(vt, to_units)[0]
     return v
-
-
-def nullproof(key, data):
-    if key in data and data[key] is not None:
-        return data[key]
-    return 0
 
 
 def calcRainHour(dbm, ts):
@@ -145,7 +127,7 @@ class CumulusWXNow(StdService):
             data = self.calculate(event_data, dbm)
             self.write_data(data)
         except Exception as e:
-            log_traceback_error('cwxn: **** ')
+            log_traceback_error('cwxn: **** ' + str(e))
 
     def calculate(self, packet, archive):
         pu = packet.get('usUnits')
@@ -160,19 +142,25 @@ class CumulusWXNow(StdService):
 
         # Wind speed calculations
         if 'windSpeed' in packet and packet['windSpeed'] is not None:
-            data['windSpeed'] = ("/%03d" % int( convert(packet['windspeed'], 'windSpeed', 'group_speed', pu, 'mile_per_hour')))
+            data['windSpeed'] = ("/%03d" % int(
+                    convert(packet['windspeed'], 'windSpeed', 'group_speed',
+                            pu, 'mile_per_hour')))
         else:
             data['windSpeed'] = "/   "
 
         # Wind gust calculations
         if 'windGust' in packet and packet['windGust'] is not None:
-            data['windGust'] = ("g%03d" % int( convert(packet['windgust'], 'windGust', 'group_speed', pu, 'mile_per_hour')))
+            data['windGust'] = ("g%03d" % int(
+                convert(packet['windgust'], 'windGust', 'group_speed',
+                        pu, 'mile_per_hour')))
         else:
             data['windGust'] = "g   "
 
         # Temperature calculations
         if 'outTemp' in packet and packet['outTemp'] is not None:
-            data['outTemp'] = ("t%03d" % int( convert(packet['outTemp'], 'outTemp', 'group_temperature', pu, 'degree_F')))
+            data['outTemp'] = ("t%03d" % int(
+                convert(packet['outTemp'], 'outTemp', 'group_temperature',
+                        pu, 'degree_F')))
         else:
             data['outTemp'] = "t   "
 
@@ -184,30 +172,39 @@ class CumulusWXNow(StdService):
 
         # Barometer calculations
         if 'barometer' in packet and packet['barometer'] is not None:
-            data['barometer'] = ("b%05d" % int( convert(packet['barometer'], 'pressure', 'group_pressure', pu, 'mbar') * 10))
+            data['barometer'] = ("b%05d" % int(
+                convert(packet['barometer'], 'pressure', 'group_pressure',
+                        pu, 'mbar') * 10))
         else:
             data['barometer'] = 'b     '
 
-
         v = calcRainHour(archive, data['dateTime'])
         if v is None:
-            v = 0
-        data['hourRain'] = convert(v, 'rain', 'group_rain', pu, 'inch')
+            data['hourRain'] = "r   "
+        else:
+            data['hourRain'] = ("r%03d" % int(
+                convert(v, 'rain', 'group_rain', pu, 'inch') * 100))
 
-        if 'rain24' in packet:
-            v = nullproof('rain24', packet)
+        if 'rain24' in packet and packet['rain24'] is not None:
+            v = packet['rain24']
         else:
             v = calcRain24(archive, data['dateTime'])
-            v = 0 if v is None else v
-        data['rain24'] = convert(v, 'rain', 'group_rain', pu, 'inch')
+        if v is None:
+            data['rain24'] = "p   "
+        else:
+            data['rain24'] = ("p%03d" % int(
+                convert(v, 'rain', 'group_rain', pu, 'inch') * 100))
 
-        if 'dayRain' in packet:
-            v = nullproof('dayRain', packet)
+        if 'dayRain' in packet and packet['dayRain'] is not None:
+            v = packet['dayRain']
         else:
             v = calcDayRain(archive, data['dateTime'])
-            v = 0 if v is None else v
-        data['dayRain'] = convert(v, 'rain', 'group_rain', pu, 'inch')
 
+        if v is None:
+            data['dayRain'] = "P   "
+        else:
+            data['dayRain'] = ("P%03d" % int(
+                convert(v, 'rain', 'group_rain', pu, 'inch')))
 
         return data
 
@@ -217,9 +214,9 @@ class CumulusWXNow(StdService):
         fields.append(data['windSpeed'])
         fields.append(data['windGust'])
         fields.append(data['outTemp'])
-        fields.append("r   ") # fields.append("r%03d" % int(data['hourRain'] * 100))
-        fields.append("p   ") # fields.append("p%03d" % int(data['rain24'] * 100))
-        fields.append("P   ") # fields.append("P%03d" % int(data['dayRain'] * 100))
+        fields.append(data['hourRain'])
+        fields.append(data['rain24'])
+        fields.append(data['dayRain'])
         fields.append(data['outHumidity'])
         fields.append(data['barometer'])
 
