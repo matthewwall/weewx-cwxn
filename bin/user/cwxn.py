@@ -17,9 +17,6 @@ weewx configuration file:
         process_services = ..., user.cwxn.CumulusWXNow
 """
 
-# FIXME: when value is None, we insert a 0.  but is there something in the
-#        aprs spec that is more appropriate?
-
 import time
 
 import weewx
@@ -41,9 +38,6 @@ try:
     def loginf(msg):
         log.info(msg)
 
-    def logerr(msg):
-        log.error(msg)
-
     def log_traceback_error(prefix=''):
         log_traceback(log.error, prefix=prefix)
 
@@ -55,14 +49,8 @@ except ImportError:
     def logmsg(level, msg):
         syslog.syslog(level, 'cwxn: %s' % msg)
 
-    def logdbg(msg):
-        logmsg(syslog.LOG_DEBUG, msg)
-
     def loginf(msg):
         logmsg(syslog.LOG_INFO, msg)
-
-    def logerr(msg):
-        logmsg(syslog.LOG_ERR, msg)
 
     def log_traceback_error(prefix=''):
         log_traceback(prefix=prefix, loglevel=syslog.LOG_ERR)
@@ -79,12 +67,6 @@ def convert(v, metric, group, from_unit_system, to_units):
     vt = (v, ut[0], group)
     v = weewx.units.convert(vt, to_units)[0]
     return v
-
-
-def nullproof(key, data):
-    if key in data and data[key] is not None:
-        return data[key]
-    return 0
 
 
 def calcRainHour(dbm, ts):
@@ -145,53 +127,99 @@ class CumulusWXNow(StdService):
             data = self.calculate(event_data, dbm)
             self.write_data(data)
         except Exception as e:
-            log_traceback_error('cwxn: **** ')
+            log_traceback_error('cwxn: **** ' + str(e))
 
     def calculate(self, packet, archive):
         pu = packet.get('usUnits')
         data = dict()
         data['dateTime'] = packet['dateTime']
-        data['windDir'] = nullproof('windDir', packet)
-        v = nullproof('windSpeed', packet)
-        data['windSpeed'] = convert(v, 'windSpeed', 'group_speed', pu, 'mile_per_hour')
-        v = nullproof('windGust', packet)
-        data['windGust'] = convert(v, 'windGust', 'group_speed', pu, 'mile_per_hour')
-        v = nullproof('outTemp', packet)
-        data['outTemp'] = convert(v, 'outTemp', 'group_temperature', pu, 'degree_F')
+
+        # Wind direction calculations
+        if 'windDir' in packet and packet['windDir'] is not None:
+            data['windDir'] = ("%03d" % int(packet['windDir']))
+        else:
+            data['windDir'] = "   "
+
+        # Wind speed calculations
+        if 'windSpeed' in packet and packet['windSpeed'] is not None:
+            data['windSpeed'] = ("/%03d" % int(
+                    convert(packet['windspeed'], 'windSpeed', 'group_speed',
+                            pu, 'mile_per_hour')))
+        else:
+            data['windSpeed'] = "/   "
+
+        # Wind gust calculations
+        if 'windGust' in packet and packet['windGust'] is not None:
+            data['windGust'] = ("g%03d" % int(
+                convert(packet['windgust'], 'windGust', 'group_speed',
+                        pu, 'mile_per_hour')))
+        else:
+            data['windGust'] = "g   "
+
+        # Temperature calculations
+        if 'outTemp' in packet and packet['outTemp'] is not None:
+            data['outTemp'] = ("t%03d" % int(
+                convert(packet['outTemp'], 'outTemp', 'group_temperature',
+                        pu, 'degree_F')))
+        else:
+            data['outTemp'] = "t   "
+
+        # Humidity calculations
+        if 'outHumidity' in packet and packet['outHumidity'] is not None:
+            data['outHumidity'] = ("h%02d" % int(packet['outHumidity']))
+        else:
+            data['outHumidity'] = "h   "
+
+        # Barometer calculations
+        if 'barometer' in packet and packet['barometer'] is not None:
+            data['barometer'] = ("b%05d" % int(
+                convert(packet['barometer'], 'pressure', 'group_pressure',
+                        pu, 'mbar') * 10))
+        else:
+            data['barometer'] = 'b     '
+
         v = calcRainHour(archive, data['dateTime'])
         if v is None:
-            v = 0
-        data['hourRain'] = convert(v, 'rain', 'group_rain', pu, 'inch')
-        if 'rain24' in packet:
-            v = nullproof('rain24', packet)
+            data['hourRain'] = "r   "
+        else:
+            data['hourRain'] = ("r%03d" % int(
+                convert(v, 'rain', 'group_rain', pu, 'inch') * 100))
+
+        if 'rain24' in packet and packet['rain24'] is not None:
+            v = packet['rain24']
         else:
             v = calcRain24(archive, data['dateTime'])
-            v = 0 if v is None else v
-        data['rain24'] = convert(v, 'rain', 'group_rain', pu, 'inch')
-        if 'dayRain' in packet:
-            v = nullproof('dayRain', packet)
+        if v is None:
+            data['rain24'] = "p   "
+        else:
+            data['rain24'] = ("p%03d" % int(
+                convert(v, 'rain', 'group_rain', pu, 'inch') * 100))
+
+        if 'dayRain' in packet and packet['dayRain'] is not None:
+            v = packet['dayRain']
         else:
             v = calcDayRain(archive, data['dateTime'])
-            v = 0 if v is None else v
-        data['dayRain'] = convert(v, 'rain', 'group_rain', pu, 'inch')
-        data['outHumidity'] = nullproof('outHumidity', packet)
-        v = nullproof('barometer', packet)
-        data['barometer'] = convert(v, 'pressure', 'group_pressure', pu, 'mbar')
+
+        if v is None:
+            data['dayRain'] = "P   "
+        else:
+            data['dayRain'] = ("P%03d" % int(
+                convert(v, 'rain', 'group_rain', pu, 'inch')))
+
         return data
 
     def write_data(self, data):
         fields = []
-        fields.append("%03d" % int(data['windDir']))
-        fields.append("/%03d" % int(data['windSpeed']))
-        fields.append("g%03d" % int(data['windGust']))
-        fields.append("t%03d" % int(data['outTemp']))
-        fields.append("r%03d" % int(data['hourRain'] * 100))
-        fields.append("p%03d" % int(data['rain24'] * 100))
-        fields.append("P%03d" % int(data['dayRain'] * 100))
-        if data['outHumidity'] < 0 or 100 <= data['outHumidity']:
-            data['outHumidity'] = 0
-        fields.append("h%03d" % int(data['outHumidity']))
-        fields.append("b%05d" % int(data['barometer'] * 10))
+        fields.append(data['windDir'])
+        fields.append(data['windSpeed'])
+        fields.append(data['windGust'])
+        fields.append(data['outTemp'])
+        fields.append(data['hourRain'])
+        fields.append(data['rain24'])
+        fields.append(data['dayRain'])
+        fields.append(data['outHumidity'])
+        fields.append(data['barometer'])
+
         with open(self.filename, 'w') as f:
             f.write(time.strftime("%b %d %Y %H:%M\n",
                                   time.localtime(data['dateTime'])))
