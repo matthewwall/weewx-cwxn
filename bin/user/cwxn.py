@@ -136,13 +136,13 @@ class CumulusWXNow(StdService):
 
         # Wind direction calculations
         if 'windDir' in packet and packet['windDir'] is not None:
-            data['windDir'] = ("%03d" % int(packet['windDir']))
+            data['windDir'] = ("%03d" % round(packet['windDir']))
         else:
             data['windDir'] = "   "
 
         # Wind speed calculations
         if 'windSpeed' in packet and packet['windSpeed'] is not None:
-            data['windSpeed'] = ("/%03d" % int(
+            data['windSpeed'] = ("/%03d" % round(
                     convert(packet['windspeed'], 'windSpeed', 'group_speed',
                             pu, 'mile_per_hour')))
         else:
@@ -150,7 +150,7 @@ class CumulusWXNow(StdService):
 
         # Wind gust calculations
         if 'windGust' in packet and packet['windGust'] is not None:
-            data['windGust'] = ("g%03d" % int(
+            data['windGust'] = ("g%03d" % round(
                 convert(packet['windgust'], 'windGust', 'group_speed',
                         pu, 'mile_per_hour')))
         else:
@@ -158,7 +158,7 @@ class CumulusWXNow(StdService):
 
         # Temperature calculations
         if 'outTemp' in packet and packet['outTemp'] is not None:
-            data['outTemp'] = ("t%03d" % int(
+            data['outTemp'] = ("t%03d" % round(
                 convert(packet['outTemp'], 'outTemp', 'group_temperature',
                         pu, 'degree_F')))
         else:
@@ -166,13 +166,13 @@ class CumulusWXNow(StdService):
 
         # Humidity calculations
         if 'outHumidity' in packet and packet['outHumidity'] is not None:
-            data['outHumidity'] = ("h%02d" % int(packet['outHumidity']))
+            data['outHumidity'] = ("h%02d" % round(packet['outHumidity']))
         else:
             data['outHumidity'] = "h   "
 
         # Barometer calculations
         if 'barometer' in packet and packet['barometer'] is not None:
-            data['barometer'] = ("b%05d" % int(
+            data['barometer'] = ("b%05d" % round(
                 convert(packet['barometer'], 'pressure', 'group_pressure',
                         pu, 'mbar') * 10))
         else:
@@ -182,7 +182,7 @@ class CumulusWXNow(StdService):
         if v is None:
             data['hourRain'] = "r   "
         else:
-            data['hourRain'] = ("r%03d" % int(
+            data['hourRain'] = ("r%03d" % round(
                 convert(v, 'rain', 'group_rain', pu, 'inch') * 100))
 
         if 'rain24' in packet and packet['rain24'] is not None:
@@ -192,7 +192,7 @@ class CumulusWXNow(StdService):
         if v is None:
             data['rain24'] = "p   "
         else:
-            data['rain24'] = ("p%03d" % int(
+            data['rain24'] = ("p%03d" % round(
                 convert(v, 'rain', 'group_rain', pu, 'inch') * 100))
 
         if 'dayRain' in packet and packet['dayRain'] is not None:
@@ -203,7 +203,7 @@ class CumulusWXNow(StdService):
         if v is None:
             data['dayRain'] = "P   "
         else:
-            data['dayRain'] = ("P%03d" % int(
+            data['dayRain'] = ("P%03d" % round(
                 convert(v, 'rain', 'group_rain', pu, 'inch')))
 
         return data
